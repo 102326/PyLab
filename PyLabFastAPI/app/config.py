@@ -1,0 +1,42 @@
+# app/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    # === 钉钉配置 ===
+    DINGTALK_APPID: str
+    DINGTALK_APPSECRET: str
+
+    # === JWT 配置 ===
+    SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+
+    # === 数据库配置 ===
+    REDIS_URL: str
+    DB_URL: str
+
+    # === 七牛云配置 ===
+    QINIU_ACCESS_KEY: str
+    QINIU_SECRET_KEY: str
+    QINIU_BUCKET_NAME: str
+    QINIU_DOMAIN: str
+
+    # === 百度云 OCR 配置 (新增) ===
+    # 允许为空(Optional)，或者给默认值 None，防止没填报错
+    BAIDU_APP_ID: str = ""
+    BAIDU_API_KEY: str = ""
+    BAIDU_SECRET_KEY: str = ""
+
+    # === 核心配置：加载 .env 文件 ===
+    model_config = SettingsConfigDict(
+        env_file=".env",  # 指定读取的文件名
+        env_file_encoding="utf-8",
+        extra="ignore"  # 忽略 .env 中多余的字段
+    )
+
+settings = Settings()
+
+
+
+

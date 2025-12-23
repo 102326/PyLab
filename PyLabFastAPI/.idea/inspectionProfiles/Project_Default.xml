@@ -1,0 +1,42 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="bzip2" />
+          <option value="ca-certificates" />
+          <option value="expat" />
+          <option value="libffi" />
+          <option value="libmpdec" />
+          <option value="libzlib" />
+          <option value="openssl" />
+          <option value="pip" />
+          <option value="python_abi" />
+          <option value="setuptools" />
+          <option value="sqlite" />
+          <option value="tk" />
+          <option value="ucrt" />
+          <option value="vc" />
+          <option value="vc14_runtime" />
+          <option value="vs2015_runtime" />
+          <option value="wheel" />
+          <option value="xz" />
+          <option value="zlib" />
+          <option value="asgiref" />
+          <option value="django" />
+          <option value="django-cors-headers" />
+          <option value="django-filter" />
+          <option value="djangorestframework" />
+          <option value="djangorestframework-simplejwt" />
+          <option value="mysqlclient" />
+          <option value="pyjwt" />
+          <option value="pymysql" />
+          <option value="sqlparse" />
+          <option value="tzdata" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
