@@ -9,6 +9,7 @@ from app.utils.baidu_ocr import BaiduOCR  # 引入刚才写的工具
 from app.deps import get_current_user  # 引入依赖
 from fastapi import Depends
 from pydantic import BaseModel
+from app.tasks.ocr_tasks import verify_idcard_task
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
@@ -59,11 +60,11 @@ async def register(req: UnifiedLoginReq):
 
 
 
-# === 百度API实名验证 ===
+
 # 定义请求参数
 class IDCardVerifyReq(BaseModel):
-    front_url: str  # 正面图 URL
-    back_url: str  # 反面图 URL
+    front_url: str
+    back_url: str
 
 
 @router.post("/verify/idcard")
@@ -71,45 +72,63 @@ async def verify_idcard(
         req: IDCardVerifyReq,
         user: User = Depends(get_current_user)
 ):
-    # 1. 只有“老师”角色才能进行实名认证
-    # (根据你的需求，也可以允许学生转老师，但目前先严格卡控)
+    # 1. 权限校验
     if user.role != UserRole.TEACHER:
         raise HTTPException(status_code=403, detail="仅教师账号可进行实名认证")
 
-    # 2. 检查是否已经认证过
-    # 注意：Tortoise 的 OneToOne 关系，如果没有 profile 会抛错还是返回 None？
-    # 建议用 get_or_none 或者 try-except
+    # 2. 检查当前状态
     profile = await TeacherProfile.get_or_none(user=user)
 
+    # 如果已经通过，拦截
     if profile and profile.verify_status == 2:
-        raise HTTPException(status_code=400, detail="您已通过实名认证，无需重复提交")
+        raise HTTPException(status_code=400, detail="您已通过实名认证")
 
-    # 3. 调用百度 OCR
-    ocr = BaiduOCR()
-    id_info = ocr.idcard_front(req.front_url)
-
-    if not id_info:
-        raise HTTPException(status_code=400, detail="身份证识别失败，请确保图片清晰且为身份证正面")
-
-    # 4. 保存/更新档案
+    # 如果没有档案，先创建
     if not profile:
-        # 如果没有档案，新建一个
         profile = await TeacherProfile.create(user=user)
 
-    # 更新字段
-    profile.real_name = id_info["name"]
-    profile.id_card = id_info["id_num"]
+    # 3. [关键] 先将状态置为 "1 (审核中)" 并存库
+    # 这样用户在前端立刻就能看到“审核中”的状态
+    profile.verify_status = 1
     profile.id_card_img_f = req.front_url
     profile.id_card_img_b = req.back_url
-    profile.verify_status = 2  # 这里我们偷懒直接设为“已通过”，正规流程应该是 1 (审核中)
-
     await profile.save()
+
+    # 4. [关键] 生产者发布任务
+    # .delay() 会把消息扔进 Redis，耗时极短
+    verify_idcard_task.delay(user.id, req.front_url, req.back_url)
+
+    # 5. 立即响应前端
+    return {
+        "code": 200,
+        "msg": "提交成功，系统正在后台审核",
+        "data": {
+            "status": 1,  # 告诉前端现在的状态
+            "tips": "预计 3 秒内完成，请稍后刷新查看"
+        }
+    }
+
+
+@router.get("/me")
+async def get_my_info(user: User = Depends(get_current_user)):
+    """
+    获取当前登录用户的完整信息，包括教师档案状态
+    """
+    # 查询关联的教师档案
+    teacher_profile = await TeacherProfile.get_or_none(user=user)
 
     return {
         "code": 200,
-        "msg": "实名认证成功",
+        "msg": "获取成功",
         "data": {
-            "real_name": profile.real_name,
-            "id_card": profile.id_card
+            "user_info": {
+                "id": user.id,
+                "username": user.username,
+                "nickname": user.nickname,
+                "avatar": user.avatar,
+                "role": user.role
+            },
+            # 将档案信息也返回给前端
+            "teacher_profile": teacher_profile
         }
     }

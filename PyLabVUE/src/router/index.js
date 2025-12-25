@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import UserCenter from "@/views/UserCenter.vue";
 import TeacherUpload from "@/views/TeacherUpload.vue";
+import TeacherVerify from "@/views/TeacherVerify.vue";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -27,6 +28,12 @@ const router = createRouter({
       path: '/upload',
       name: 'Upload',
       component: TeacherUpload
+    },
+    {
+      path: '/teacher/verify',
+      name: 'TeacherVerify',
+      component: TeacherVerify,
+      meta: { requiresAuth: true }
     }
   ],
 })

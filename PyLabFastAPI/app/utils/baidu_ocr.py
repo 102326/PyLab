@@ -1,6 +1,7 @@
 # app/utils/baidu_ocr.py
 from aip import AipOcr
 from app.config import settings
+import requests  # <--- [新增 1] 引入 requests 库用于下载图片
 
 
 class BaiduOCR:
@@ -14,13 +15,29 @@ class BaiduOCR:
     def idcard_front(self, image_url: str):
         """
         识别身份证正面
-        :param image_url: 图片的公网 URL (七牛云链接)
         """
         options = {"detect_direction": "true"}
-        # 百度支持直接传 URL
-        result = self.client.idcard(image_url, "front", options)
 
-        # 检查是否识别成功
+        # === [核心修复] 开始 ===
+        # 1. 先下载图片获取二进制数据 (bytes)
+        try:
+            print(f"正在下载图片: {image_url}")
+            resp = requests.get(image_url, timeout=10)
+            if resp.status_code != 200:
+                print(f"图片下载失败，状态码: {resp.status_code}")
+                return None
+            image_bytes = resp.content  # 拿到二进制数据
+        except Exception as e:
+            print(f"下载图片异常: {e}")
+            return None
+
+        # 2. 将二进制数据传给 SDK
+        # SDK 会自动对其进行 Base64 编码，这样就不会报错了
+        result = self.client.idcard(image_bytes, "front", options)
+        # === [核心修复] 结束 ===
+
+        print(f"[BaiduOCR] 识别结果: {result}")
+
         if "words_result" in result:
             return {
                 "name": result["words_result"]["姓名"]["words"],
@@ -28,8 +45,6 @@ class BaiduOCR:
                 "address": result["words_result"]["住址"]["words"]
             }
 
-        # 如果出错，打印日志方便调试
-        print(f"OCR识别失败: {result}")
         return None
 
     def idcard_back(self, image_url: str):

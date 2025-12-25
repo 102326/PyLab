@@ -4,7 +4,7 @@
 
       <div class="header">
         <h2 class="app-title">PyLab</h2>
-        <p class="sub-title">开启你的 Python 之旅</p>
+        <p class="sub-title">开启你的 代码学习 之旅</p>
       </div>
 
       <div class="main-content">
@@ -17,8 +17,8 @@
               size="large"
               @keyup.enter="handlePasswordLogin"
           >
-            <el-form-item prop="username">
-              <el-input v-model="form.username" placeholder="邮箱 / 用户名" />
+            <el-form-item prop="phone">
+              <el-input v-model="form.phone" placeholder="邮箱 / 用户名" />
             </el-form-item>
             <el-form-item prop="password">
               <el-input v-model="form.password" type="password" placeholder="密码" show-password />
@@ -82,9 +82,9 @@ const loginMethod = ref('password'); // 当前显示的模式：'password' | 'di
 const loading = ref(false);
 const loginFormRef = ref(null);
 
-const form = reactive({ username: '', password: '' });
+const form = reactive({ phone: '', password: '' });
 const rules = {
-  username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
+  phone: [{ required: true, message: '请输入账号', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 };
 
@@ -123,11 +123,11 @@ const handleDingTalkLogin = (authCode) => {
 const handleRegister = () => {
   // 简易注册演示
   ElMessageBox.prompt('请输入密码', '注册新用户 (用户名)', { inputPlaceholder: '用户名' })
-      .then(async ({ value: username }) => {
+      .then(async ({ value: phone }) => {
         const password = prompt("请设置密码:");
-        if(username && password) {
+        if(phone && password) {
           try {
-            await axios.post('/api/auth/register', { login_type: 'password', username, password });
+            await axios.post('/api/auth/register', { login_type: 'password', phone, password });
             ElMessage.success("注册成功");
           } catch(e) { ElMessage.error("注册失败"); }
         }

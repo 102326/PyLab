@@ -10,24 +10,31 @@ from app.utils.security import verify_password
 
 #===账号密码登录策略===
 class PasswordAuthStrategy(BaseAuthStrategy):
+    """手机号密码登录策略"""
     async def authenticate(self, req: UnifiedLoginReq) -> User:
-        #检验参数
-        if not req.username or not req.password:
-            raise HTTPException(status_code=400, detail="用户名或密码不能为空")
-        user = await User.get_or_none(username=req.username)
-        if not user or not user.password or not verify_password(req.password, user.password):
-            raise HTTPException(status_code=400, detail="用户名或密码错误")
-        if not user.is_active:
-            raise HTTPException(status_code=400, detail="用户已被禁用")
-        if user and user.password:
-            try:
-                # 尝试验证密码
-                if verify_password(req.password, user.password):
-                    return user
-            except UnknownHashError:
-                print(f"警告: 用户 {user.id} 的密码哈希格式无效！")
+        # 1. 校验参数
+        if not req.phone or not req.password:
+            raise HTTPException(status_code=400, detail="手机号和密码不能为空")
 
-        raise HTTPException(status_code=400, detail="用户名或密码错误")
+        # 2. 查找用户 (核心修改：username -> phone)
+        # 注意：这里改成了用 phone 查找
+        user = await User.filter(phone=req.phone).first()
+
+        # 3. 验证用户和密码
+        if not user:
+            # 为了安全，不要提示“用户不存在”，而是提示模糊信息
+            raise HTTPException(status_code=400, detail="手机号或密码错误")
+
+        if not user.password:
+            raise HTTPException(status_code=400, detail="该账号未设置密码，请使用验证码登录")
+
+        if not verify_password(req.password, user.password):
+            raise HTTPException(status_code=400, detail="手机号或密码错误")
+
+        # 4. 检查账号状态
+        if not user.is_active:
+            raise HTTPException(status_code=400, detail="账号已被禁用")
+
         return user
 
 #===钉钉登录策略===

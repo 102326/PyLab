@@ -21,7 +21,12 @@
         <div class="profile-card">
           <div class="card-header">
             <h3>基本信息</h3>
-            <el-button type="primary" link>编辑资料</el-button>
+            <div class="header-actions">
+              <el-button type="warning" plain @click="router.push('/teacher/verify')">
+                教师实名认证
+              </el-button>
+              <el-button type="primary" link>编辑资料</el-button>
+            </div>
           </div>
 
           <div class="info-layout">

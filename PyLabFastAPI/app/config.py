@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # === 数据库配置 ===
     REDIS_URL: str
     DB_URL: str
+    # Broker: 任务队列使用 Redis DB 1
+    CELERY_BROKER_URL: str = "redis://127.0.0.1:6379/1"
+    # Backend: 结果存储使用 Redis DB 2
+    CELERY_RESULT_BACKEND: str = "redis://127.0.0.1:6379/2"
 
     # === 七牛云配置 ===
     QINIU_ACCESS_KEY: str
