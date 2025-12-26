@@ -7,6 +7,8 @@ from app.deps import get_current_user
 from app.models.user import User
 from app.models.course import Course, Chapter
 from app.schemas.course import CourseCreateReq, CourseOut, ChapterCreateReq, ChapterOut
+from fastapi import BackgroundTasks
+from app.services.vector_db import VectorDBService
 
 router = APIRouter(prefix="/courses", tags=["Course"])
 
@@ -15,13 +17,24 @@ router = APIRouter(prefix="/courses", tags=["Course"])
 @router.post("", response_model=CourseOut)
 async def create_course(
         req: CourseCreateReq,
+        bg_tasks: BackgroundTasks,  # <--- [新增参数]
         user: User = Depends(get_current_user)
 ):
     # 讲师创建一个新课程
     course = await Course.create(
         teacher=user,
-        **req.model_dump()  # 自动解包 title, desc, cover, price
+        **req.model_dump()
     )
+
+    # === [狠活儿] 异步生成向量 ===
+    # 放入后台任务，不卡顿主线程
+    bg_tasks.add_task(
+        VectorDBService.update_course_embedding,
+        course.id,
+        course.title,
+        course.desc
+    )
+
     return course
 
 
@@ -99,3 +112,20 @@ async def create_lesson(
     lesson = await Lesson.create(**lesson_data)
 
     return lesson
+
+
+# === [新增接口] 6. AI 语义搜索 ===
+@router.get("/search/semantic")
+async def search_courses_semantic(q: str):
+    """
+    AI 搜索接口：输入自然语言，返回最匹配的课程
+    """
+    if not q:
+        return []
+
+    results = await VectorDBService.search_similar_courses(q)
+    return {
+        "query": q,
+        "matches": results,
+        "ai_comment": "为您找到最相关的课程"
+    }

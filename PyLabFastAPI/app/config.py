@@ -32,6 +32,18 @@ class Settings(BaseSettings):
     BAIDU_API_KEY: str = ""
     BAIDU_SECRET_KEY: str = ""
 
+    # === [核心新增] AI / LLM 配置 (DeepSeek / OpenAI) ===
+    # 默认指向 DeepSeek 官方 API 地址
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = "https://api.deepseek.com/v1"
+
+    # 聊天模型 (用于生成回答)
+    LLM_MODEL_NAME: str = "deepseek-chat"
+
+    # 向量模型 (用于本地 HuggingFace)
+    # 推荐使用 BAAI/bge-small-zh-v1.5 (小巧强悍) 或 BAAI/bge-m3 (全能)
+    EMBEDDING_MODEL_NAME: str = "BAAI/bge-small-zh-v1.5"
+
     # === 核心配置：加载 .env 文件 ===
     model_config = SettingsConfigDict(
         env_file=".env",  # 指定读取的文件名

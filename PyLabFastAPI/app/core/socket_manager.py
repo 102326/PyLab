@@ -32,6 +32,24 @@ class ConnectionManager:
             del self.active_connections[user_id]
             logger.info(f"🔌 User {user_id} disconnected")
 
+    async def send_personal_message(self, message: dict, to_user_id: str):
+        """
+        尝试给指定用户发送消息
+        :return: True(发送成功) / False(用户不在线)
+        """
+        if to_user_id in self.active_connections:
+            websocket = self.active_connections[to_user_id]
+            try:
+                # 发送 JSON 数据
+                await websocket.send_json(message)
+                return True
+            except Exception as e:
+                logger.error(f"发送消息给 {to_user_id} 失败: {e}")
+                # 出现异常(如连接断开)时，移除连接
+                self.disconnect(to_user_id)
+                return False
+        return False
+
     async def listen_to_redis(self, user_id: str, websocket: WebSocket):
         """
         监听 Redis 中名为 'notify:{user_id}' 的频道

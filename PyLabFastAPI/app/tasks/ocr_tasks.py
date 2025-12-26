@@ -67,9 +67,9 @@ async def process_ocr_logic(user_id: int, front_url: str, back_url: str):
             if user.role == UserRole.STUDENT:
                 user.role = UserRole.TEACHER
                 await user.save()
-                print(f"🎉 用户 {user_id} 角色已自动升级为讲师 (Role=1)")
+                print(f"用户 {user_id} 角色已自动升级为讲师 (Role=1)")
 
-            print(f"✅ OCR 识别成功: {id_info['name']}")
+            print(f"OCR 识别成功: {id_info['name']}")
 
             # 3. 准备成功通知消息 (WebSocket用)
             notify_payload = {
@@ -86,7 +86,7 @@ async def process_ocr_logic(user_id: int, front_url: str, back_url: str):
             # --- B. 失败逻辑 ---
             profile.verify_status = 3  # 状态：被驳回
             profile.reject_reason = "图片识别失败，请确保文字清晰"
-            print("❌ 识别失败，已驳回")
+            print("识别失败，已驳回")
 
             # 准备失败通知消息
             notify_payload = {
@@ -109,7 +109,7 @@ async def process_ocr_logic(user_id: int, front_url: str, back_url: str):
         return {"status": profile.verify_status, "user_id": user_id}
 
     except Exception as e:
-        print(f"💥 任务异常: {e}")
+        print(f"任务异常: {e}")
         # 发生代码级异常，也通知前端
         error_payload = {
             "type": "ocr_result",
