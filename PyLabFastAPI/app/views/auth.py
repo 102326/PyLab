@@ -16,13 +16,19 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 # === 统一登录接口 (工厂模式入口) ===
 @router.post("/login")
 async def unified_login(req: UnifiedLoginReq):
-    # 1. 工厂分发
+    # 注意：现在的登录策略可能还是在用 username 查库
+    # 如果你的 AuthStrategy 里是用 username=req.username 查的
+    # 那么注册时必须保证 username 里有值（可以是手机号）
+
+    # 暂时保持现有逻辑，后续如果要分离 username/phone 登录，需修改 strategy
     strategy = AuthFactory.get_strategy(req.login_type)
 
-    # 2. 策略执行 (返回 User)
-    user = await strategy.authenticate(req)
+    # 这里我们假设前端传来的 phone 在 req.username 字段里 (因为 UnifiedLoginReq 的定义)
+    # 或者前端改了模型传 phone，这里要做适配
+    # 假设前端传的是：{ "login_type": "password", "phone": "138...", "password": "..." }
+    # Pydantic 会把 phone 映射到 UnifiedLoginReq 的对应字段
 
-    # 3. 签发 Token (复用 JWT 逻辑)
+    user = await strategy.authenticate(req)
     access_token, refresh_token = await MyJWT.login_user(user.id)
 
     return {
@@ -35,30 +41,43 @@ async def unified_login(req: UnifiedLoginReq):
                 "id": user.id,
                 "username": user.username,
                 "nickname": user.nickname,
-                "avatar": user.avatar
+                "avatar": user.avatar,
+                "role": user.role
             }
         }
     }
 
 
-# === 注册接口 (用于创建账号密码用户) ===
+# === 核心修复：注册接口 ===
 @router.post("/register")
 async def register(req: UnifiedLoginReq):
     if req.login_type != "password":
         raise HTTPException(status_code=400, detail="目前只支持账号密码注册")
 
-    if await User.filter(username=req.username).exists():
-        raise HTTPException(status_code=400, detail="用户名已存在")
+    # 前端传来的手机号字段是 phone
+    phone_number = req.phone
 
+    if not phone_number:
+        raise HTTPException(status_code=400, detail="手机号不能为空")
+
+    # 1. 检查手机号是否已存在 (查 phone 字段)
+    if await User.filter(phone=phone_number).exists():
+        raise HTTPException(status_code=400, detail="该手机号已注册")
+
+    # 2. 创建用户
+    # 逻辑修正：
+    # username -> 存手机号 (作为登录账号)
+    # phone    -> 存手机号 (作为联系方式)
+    # 这样既保证了能用 username 登录 (兼容旧逻辑)，也正确填充了 phone 字段
     await User.create(
-        username=req.username,
-        password=get_password_hash(req.password),  # 加密存储
-        nickname="新用户"
+        username=phone_number,  # <--- 登录账号 = 手机号
+        phone=phone_number,  # <--- 手机号字段 = 手机号
+        password=get_password_hash(req.password),
+        nickname=f"用户{phone_number[-4:]}",
+        role=req.role
     )
+
     return {"code": 200, "msg": "注册成功"}
-
-
-
 
 
 # 定义请求参数
@@ -72,51 +91,33 @@ async def verify_idcard(
         req: IDCardVerifyReq,
         user: User = Depends(get_current_user)
 ):
-    # 1. 权限校验
-    if user.role != UserRole.TEACHER:
-        raise HTTPException(status_code=403, detail="仅教师账号可进行实名认证")
+    if user.role == UserRole.ADMIN:
+        raise HTTPException(status_code=400, detail="管理员无需认证")
 
-    # 2. 检查当前状态
     profile = await TeacherProfile.get_or_none(user=user)
-
-    # 如果已经通过，拦截
     if profile and profile.verify_status == 2:
         raise HTTPException(status_code=400, detail="您已通过实名认证")
 
-    # 如果没有档案，先创建
     if not profile:
         profile = await TeacherProfile.create(user=user)
 
-    # 3. [关键] 先将状态置为 "1 (审核中)" 并存库
-    # 这样用户在前端立刻就能看到“审核中”的状态
     profile.verify_status = 1
     profile.id_card_img_f = req.front_url
     profile.id_card_img_b = req.back_url
     await profile.save()
 
-    # 4. [关键] 生产者发布任务
-    # .delay() 会把消息扔进 Redis，耗时极短
     verify_idcard_task.delay(user.id, req.front_url, req.back_url)
 
-    # 5. 立即响应前端
     return {
         "code": 200,
         "msg": "提交成功，系统正在后台审核",
-        "data": {
-            "status": 1,  # 告诉前端现在的状态
-            "tips": "预计 3 秒内完成，请稍后刷新查看"
-        }
+        "data": {"status": 1}
     }
 
 
 @router.get("/me")
 async def get_my_info(user: User = Depends(get_current_user)):
-    """
-    获取当前登录用户的完整信息，包括教师档案状态
-    """
-    # 查询关联的教师档案
     teacher_profile = await TeacherProfile.get_or_none(user=user)
-
     return {
         "code": 200,
         "msg": "获取成功",
@@ -126,9 +127,9 @@ async def get_my_info(user: User = Depends(get_current_user)):
                 "username": user.username,
                 "nickname": user.nickname,
                 "avatar": user.avatar,
-                "role": user.role
+                "role": user.role,
+                "phone": user.phone  # 可以顺便把 phone 也返回回去
             },
-            # 将档案信息也返回给前端
             "teacher_profile": teacher_profile
         }
     }

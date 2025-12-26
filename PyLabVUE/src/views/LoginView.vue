@@ -1,277 +1,226 @@
 <template>
-  <div class="login-bg">
-    <div class="login-card">
-
-      <div class="header">
-        <h2 class="app-title">PyLab</h2>
-        <p class="sub-title">开启你的 代码学习 之旅</p>
+  <div
+    class="h-screen w-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100"
+  >
+    <div class="bg-white w-full max-w-md p-8 rounded-2xl shadow-xl transition-all hover:shadow-2xl">
+      <div class="text-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">PyLab</h1>
+        <p class="text-gray-500 text-sm">
+          {{ isRegister ? '创建新账号' : '开启你的代码学习之旅' }}
+        </p>
       </div>
 
-      <div class="main-content">
+      <div
+        v-if="!isRegister"
+        class="flex justify-center mb-6 space-x-6 border-b border-gray-100 pb-2"
+      >
+        <span
+          class="cursor-pointer pb-2 border-b-2 transition-all duration-300 px-2"
+          :class="
+            loginMethod === 'password'
+              ? 'border-blue-500 text-blue-600 font-bold'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
+          "
+          @click="loginMethod = 'password'"
+        >
+          账号密码
+        </span>
+        <span
+          class="cursor-pointer pb-2 border-b-2 transition-all duration-300 px-2"
+          :class="
+            loginMethod === 'dingtalk'
+              ? 'border-blue-500 text-blue-600 font-bold'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
+          "
+          @click="loginMethod = 'dingtalk'"
+        >
+          钉钉扫码
+        </span>
+      </div>
 
-        <div v-show="loginMethod === 'password'" class="form-container">
-          <el-form
-              ref="loginFormRef"
-              :model="form"
-              :rules="rules"
-              size="large"
-              @keyup.enter="handlePasswordLogin"
+      <div v-if="isRegister || loginMethod === 'password'" class="animate-fade-in">
+        <el-form ref="formRef" :model="form" :rules="rules" size="large" class="space-y-4">
+          <el-form-item prop="phone">
+            <el-input v-model="form.phone" placeholder="手机号" :prefix-icon="UserIcon" />
+          </el-form-item>
+
+          <el-form-item prop="password">
+            <el-input
+              v-model="form.password"
+              type="password"
+              placeholder="密码"
+              show-password
+              :prefix-icon="Lock"
+              @keyup.enter="handleSubmit"
+            />
+          </el-form-item>
+
+          <div v-if="isRegister" class="animate-fade-in-down">
+            <el-form-item prop="role">
+              <el-radio-group v-model="form.role" class="w-full !flex">
+                <el-radio-button :value="0" class="flex-1 text-center">我是学生</el-radio-button>
+                <el-radio-button :value="1" class="flex-1 text-center">我是老师</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+            <p class="text-xs text-gray-400 mt-1 text-center">
+              * 老师账号需完成实名认证后方可发布课程
+            </p>
+          </div>
+
+          <el-button
+            type="primary"
+            :loading="loading"
+            class="!w-full !rounded-full !h-12 !text-lg !font-semibold mt-4 bg-gradient-to-r from-blue-500 to-indigo-600 border-none hover:opacity-90"
+            @click="handleSubmit"
           >
-            <el-form-item prop="phone">
-              <el-input v-model="form.phone" placeholder="邮箱 / 用户名" />
-            </el-form-item>
-            <el-form-item prop="password">
-              <el-input v-model="form.password" type="password" placeholder="密码" show-password />
-            </el-form-item>
+            {{ isRegister ? '立即注册' : '登录' }}
+          </el-button>
 
-            <el-button type="primary" class="action-btn login-btn" :loading="loading" @click="handlePasswordLogin">
-              登录
-            </el-button>
-            <el-button class="action-btn register-btn" @click="handleRegister">
-              注册账号
-            </el-button>
-          </el-form>
-        </div>
-
-        <div v-show="loginMethod === 'dingtalk'" class="qr-container">
-          <div class="qr-header">
-            <span>请使用钉钉扫码</span>
-            <el-button link type="primary" @click="loginMethod = 'password'">返回账号登录</el-button>
+          <div class="flex justify-between text-sm text-gray-500 mt-4">
+            <span class="cursor-pointer hover:text-blue-600" v-if="!isRegister">忘记密码?</span>
+            <span class="flex-1"></span>
+            <span class="cursor-pointer text-blue-600 font-semibold" @click="toggleMode">
+              {{ isRegister ? '已有账号？去登录' : '没有账号？注册新账号' }}
+            </span>
           </div>
-          <DingTalkLogin v-if="loginMethod === 'dingtalk'" @auth-code-received="handleDingTalkLogin" />
-        </div>
-
+        </el-form>
       </div>
 
-      <div class="footer-divider">
-        <span>用其他账号登录</span>
-      </div>
-
-      <div class="social-login-group">
-        <el-tooltip content="钉钉登录" placement="bottom">
-          <div class="social-btn dingtalk-btn" @click="loginMethod = 'dingtalk'">
-            <span>钉</span>
-          </div>
-        </el-tooltip>
-
-        <el-tooltip content="QQ登录 (暂未开放)" placement="bottom">
-          <div class="social-btn qq-btn disabled">Q</div>
-        </el-tooltip>
-
-        <el-tooltip content="微信登录 (暂未开放)" placement="bottom">
-          <div class="social-btn wechat-btn disabled">微</div>
-        </el-tooltip>
-      </div>
-
-      <div class="terms">
-        登录即代表您同意 <a href="#">服务条款</a> 和 <a href="#">隐私政策</a>
+      <div v-else class="flex justify-center py-4 animate-fade-in">
+        <DingTalkLogin @auth-code-received="handleDingTalkCode" />
       </div>
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, reactive } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import axios from 'axios';
-import { useRouter } from 'vue-router';
-import DingTalkLogin from '../components/DingTalkLogin.vue';
+<script setup lang="ts">
+import { reactive, ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { User as UserIcon, Lock } from '@element-plus/icons-vue'
+import { useUserStore } from '@/stores/user'
+import { AuthApi } from '@/api/auth'
+import type { LoginReq } from '@/model/auth'
+import DingTalkLogin from '@/components/DingTalkLogin.vue' // 引入组件
 
-const router = useRouter();
-const loginMethod = ref('password'); // 当前显示的模式：'password' | 'dingtalk'
-const loading = ref(false);
-const loginFormRef = ref(null);
+const router = useRouter()
+const userStore = useUserStore()
 
-const form = reactive({ phone: '', password: '' });
-const rules = {
-  phone: [{ required: true, message: '请输入账号', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
-};
+const formRef = ref<FormInstance>()
+const loading = ref(false)
+const isRegister = ref(false) // 是否处于注册模式
+const loginMethod = ref<'password' | 'dingtalk'>('password') // 登录方式
 
-// ... (handlePasswordLogin, handleDingTalkLogin, handleRegister 逻辑与之前保持一致，此处省略以节省篇幅) ...
-// 记得把之前的 performLogin 等函数复制过来
-// === 核心逻辑复用开始 ===
-const performLogin = async (payload) => {
-  loading.value = true;
-  try {
-    const res = await axios.post('/api/auth/login', payload);
-    const { data, msg } = res.data;
-    localStorage.setItem('token', data.access_token);
-    // 简单存一下用户信息，方便个人中心取用
-    localStorage.setItem('user_info', JSON.stringify(data.user_info));
+// 表单数据
+const form = reactive<LoginReq>({
+  login_type: 'password',
+  phone: '',
+  password: '',
+  role: 0,
+})
 
-    ElMessage.success(msg || `欢迎回来`);
-    router.push('/user'); // 登录成功跳转到【个人中心】
-  } catch (error) {
-    ElMessage.error(error.response?.data?.detail || '登录请求失败');
-  } finally {
-    loading.value = false;
-  }
-};
+// 校验规则
+const rules = computed<FormRules>(() => ({
+  phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  ...(isRegister.value
+    ? {
+        role: [{ required: true, message: '请选择角色', trigger: 'change' }],
+      }
+    : {}),
+}))
 
-const handlePasswordLogin = async () => {
-  if (!loginFormRef.value) return;
-  await loginFormRef.value.validate((valid) => {
-    if (valid) performLogin({ login_type: 'password', ...form });
-  });
-};
+// 切换 注册/登录
+const toggleMode = () => {
+  isRegister.value = !isRegister.value
+  loginMethod.value = 'password' // 重置回密码登录
+  if (formRef.value) formRef.value.clearValidate()
+}
 
-const handleDingTalkLogin = (authCode) => {
-  performLogin({ login_type: 'dingtalk', auth_code: authCode });
-};
+// 账号密码提交
+const handleSubmit = async () => {
+  if (!formRef.value) return
 
-const handleRegister = () => {
-  // 简易注册演示
-  ElMessageBox.prompt('请输入密码', '注册新用户 (用户名)', { inputPlaceholder: '用户名' })
-      .then(async ({ value: phone }) => {
-        const password = prompt("请设置密码:");
-        if(phone && password) {
-          try {
-            await axios.post('/api/auth/register', { login_type: 'password', phone, password });
-            ElMessage.success("注册成功");
-          } catch(e) { ElMessage.error("注册失败"); }
+  await formRef.value.validate(async (valid) => {
+    if (valid) {
+      loading.value = true
+      try {
+        if (isRegister.value) {
+          // === 注册 ===
+          await AuthApi.register(form)
+          ElMessage.success('注册成功，请登录')
+          isRegister.value = false
+        } else {
+          // === 密码登录 ===
+          const data = await AuthApi.login({ ...form, login_type: 'password' })
+          handleLoginSuccess(data)
         }
-      });
-};
-// === 核心逻辑复用结束 ===
+      } catch (error) {
+        console.error(error)
+      } finally {
+        loading.value = false
+      }
+    }
+  })
+}
+
+// 钉钉扫码回调
+const handleDingTalkCode = async (code: string) => {
+  // 注意：钉钉登录时 loading 可能不太好显示在按钮上，可以用全屏 loading 或 toast
+  const loadingInstance = ElMessage.info({ message: '正在登录中...', duration: 0 })
+  try {
+    const data = await AuthApi.login({
+      login_type: 'dingtalk',
+      auth_code: code,
+    })
+    loadingInstance.close()
+    handleLoginSuccess(data)
+  } catch (error) {
+    loadingInstance.close()
+    console.error(error)
+  }
+}
+
+// 统一登录成功处理
+const handleLoginSuccess = (data: any) => {
+  userStore.setLoginState(data.access_token, data.user_info)
+  ElMessage.success(`欢迎回来，${data.user_info.nickname}`)
+  router.push('/user')
+}
 </script>
 
 <style scoped>
-.login-bg {
-  min-height: 100vh;
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+.animate-fade-in-down {
+  animation: fadeInDown 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+:deep(.el-radio-group) {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: #f2f4f6; /* Pixiv 风格浅灰底色 */
-  /* background-image: url('你的背景图.jpg'); */
-  background-size: cover;
 }
-
-.login-card {
-  width: 400px;
-  background: #ffffff;
-  border-radius: 4px; /* Pixiv 卡片圆角较小 */
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-  padding: 40px 32px;
-  text-align: center;
-}
-
-.app-title {
-  color: #0096fa; /* Pixiv 蓝 */
-  font-weight: bold;
-  font-size: 28px;
-  margin-bottom: 8px;
-}
-.sub-title {
-  color: #5c5c5c;
-  font-size: 14px;
-  margin-bottom: 30px;
-}
-
-.action-btn {
+:deep(.el-radio-button__inner) {
   width: 100%;
-  height: 40px;
-  font-weight: bold;
-  border-radius: 20px; /* 圆角按钮 */
-  margin-left: 0 !important; /* 覆盖 el-button 默认间距 */
-}
-
-.login-btn {
-  background-color: #0096fa;
-  border-color: #0096fa;
-  margin-bottom: 12px;
-}
-
-.register-btn {
-  background-color: #f5f5f5;
-  border-color: #f5f5f5;
-  color: #333;
-}
-.register-btn:hover {
-  background-color: #e0e0e0;
-}
-
-/* 分割线 */
-.footer-divider {
-  margin: 30px 0 20px;
-  position: relative;
-  text-align: center;
-}
-.footer-divider::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 0;
-  width: 100%;
-  height: 1px;
-  background: #ebebeb;
-  z-index: 0;
-}
-.footer-divider span {
-  position: relative;
-  background: #fff;
-  padding: 0 10px;
-  color: #adadad;
-  font-size: 12px;
-  z-index: 1;
-}
-
-/* 社交图标组 */
-.social-login-group {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  margin-bottom: 20px;
-}
-
-.social-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform 0.2s;
-  font-weight: bold;
-  color: white;
-  font-size: 14px;
-}
-.social-btn:hover {
-  transform: scale(1.1);
-}
-
-.dingtalk-btn {
-  background-color: #0089FF; /* 钉钉蓝 */
-  box-shadow: 0 2px 8px rgba(0, 137, 255, 0.3);
-}
-
-.qq-btn, .wechat-btn {
-  background-color: #eee;
-  color: #999;
-  cursor: not-allowed;
-}
-
-/* 二维码区域样式 */
-.qr-container {
-  min-height: 300px;
-}
-.qr-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  font-size: 14px;
-  color: #666;
-}
-
-.terms {
-  font-size: 12px;
-  color: #999;
-  margin-top: 20px;
-}
-.terms a {
-  color: #333;
-  text-decoration: none;
+  padding: 10px 0;
 }
 </style>

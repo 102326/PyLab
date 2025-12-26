@@ -9,3 +9,4 @@ class UnifiedLoginReq(BaseModel):
     password : Optional[str] = None
     #======第三方登录参数=======
     auth_code: Optional[str] = None
+    role: int = Field(0, description="注册角色: 0=学生, 1=老师")
