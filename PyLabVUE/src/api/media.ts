@@ -1,0 +1,45 @@
+import request from '@/utils/request'
+import type { ApiResponse } from '@/model/common' // 如果没有 common.ts，请看下面补充
+import type { CreateVideoReq, VideoInfo } from '@/model/media'
+
+export interface QiniuTokenRes {
+  token: string
+  domain: string
+}
+
+export interface IdCardVerifyReq {
+  front_url: string
+  back_url: string
+}
+
+export interface QiniuTokenRes {
+  token: string
+  domain: string
+}
+
+export interface IdCardVerifyReq {
+  front_url: string
+  back_url: string
+}
+
+export class MediaApi {
+  /**
+   * 1. 获取七牛云上传凭证
+   */
+  static async getUploadToken(): Promise<QiniuTokenRes> {
+    const res = await request.get<ApiResponse<QiniuTokenRes>>('/media/token')
+    return res.data.data
+  }
+
+  /**
+   * 2. 提交认证信息 (图片URL)
+   */
+  static async verifyIdCard(data: IdCardVerifyReq) {
+    const res = await request.post<ApiResponse<any>>('/auth/verify/idcard', data)
+    return res.data.data
+  }
+  static async createVideo(data: CreateVideoReq): Promise<VideoInfo> {
+    const res = await request.post<ApiResponse<VideoInfo>>('/media/videos', data)
+    return res.data.data
+  }
+}
