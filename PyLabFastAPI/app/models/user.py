@@ -24,6 +24,7 @@ class User(models.Model):
 
     is_active = fields.BooleanField(default=True, description="是否激活")
     created_at = fields.DatetimeField(auto_now_add=True)
+    push_subscriptions = fields.JSONField(default=[])
 
     # 反向关联 (Tortoise 智能提示用)
     social_accounts: fields.ReverseRelation["SocialAccount"]

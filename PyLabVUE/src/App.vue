@@ -35,7 +35,8 @@ const goToChat = () => {
 }
 
 // 1. 引入通知功能
-const { permission, requestPermission, sendNotification } = useBrowserNotification()
+const { permission, requestPermission, sendNotification, subscribeToPush } =
+  useBrowserNotification()
 
 // 计算属性：控制按钮显示（只有是 'default' 状态且浏览器支持时才显示）
 // 'granted' = 已允许, 'denied' = 已拒绝, 'default' = 未询问
@@ -47,9 +48,12 @@ const showNotifyButton = computed(() => {
 const enableNotification = async () => {
   const granted = await requestPermission()
   if (granted) {
-    sendNotification('系统通知', {
-      body: '桌面通知已开启！当您最小化浏览器时，新消息将直接推送到桌面。',
-    })
+    // 1. 原地通知
+    sendNotification('系统通知', { body: '通知已开启！' })
+
+    // 2. [新增] 注册 Web Push 订阅
+    // 这一步会触发浏览器向谷歌/火狐服务器注册，并把 token 发给你的后端
+    await subscribeToPush()
   }
 }
 

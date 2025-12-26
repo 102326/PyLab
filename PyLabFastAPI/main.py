@@ -10,6 +10,7 @@ from tortoise import Tortoise
 # 引入我们刚才写的向量服务
 from app.views.chat import router as chat_router
 from app.services.vector_db import VectorDBService
+from app.views.notification import router as notification_router
 
 app = FastAPI()
 
@@ -26,7 +27,7 @@ app.include_router(media_router)
 app.include_router(course_router)
 app.include_router(ws.router, tags=["WebSocket"])
 app.include_router(chat_router)
-
+app.include_router(notification_router)
 # 2. 注册数据库 (PGSQL)
 # 注意：register_tortoise 会自动注册一个 "startup" 事件来连接数据库和生成表结构
 register_tortoise(

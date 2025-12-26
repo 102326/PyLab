@@ -43,3 +43,26 @@ export class MediaApi {
     return res.data.data
   }
 }
+export function uploadFile(file: File | Blob) {
+  const formData = new FormData()
+
+  if (file instanceof Blob && !(file instanceof File)) {
+    // [关键修正] 根据 Blob 的 type 决定后缀名
+    let extension = 'webm'
+    if (file.type.includes('mp4')) extension = 'm4a'
+    else if (file.type.includes('ogg')) extension = 'ogg'
+    // 默认回落到 webm (Chrome/Edge/Firefox)
+
+    // 生成文件名：voice_时间戳.webm
+    formData.append('file', file, `voice_${Date.now()}.${extension}`)
+  } else {
+    // 普通文件上传 (图片等)
+    formData.append('file', file)
+  }
+
+  return request.post('/media/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
