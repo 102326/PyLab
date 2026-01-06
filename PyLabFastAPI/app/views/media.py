@@ -72,3 +72,14 @@ async def upload_file(
         "msg": "上传成功",
         "data": {"url": url}  # 前端拿这个 url 发给 websocket
     }
+
+@router.get("/videos", summary="获取我的视频列表")
+async def get_my_videos(user: User = Depends(get_current_user)):
+    videos = await VideoResource.filter(uploader=user).order_by("-created_at").all()
+    # 这里直接返回 ORM 对象列表可能需要 model_validate，或者让 FastAPI 自动处理
+    # 为了保险，可以手动转一下
+    return {
+        "code": 200,
+        "msg": "获取成功",
+        "data": videos
+    }

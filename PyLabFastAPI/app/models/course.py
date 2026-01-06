@@ -14,7 +14,7 @@ class Course(models.Model):
     cover = fields.CharField(max_length=255, null=True, description="封面图URL")
     price = fields.DecimalField(max_digits=10, decimal_places=2, default=0)
     is_published = fields.BooleanField(default=False, description="是否发布")
-
+    view_count = fields.IntField(default=0, description="浏览量/热度")
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
@@ -72,3 +72,25 @@ class VideoResource(models.Model):
 
     class Meta:
         table = "video_resources"
+
+
+class UserCourse(models.Model):
+    """
+    用户-课程关联表 (记录购买/加入记录 + 学习进度)
+    """
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='enrolled_courses')
+    course = fields.ForeignKeyField('models.Course', related_name='students')
+
+    # 学习进度
+    progress = fields.FloatField(default=0.0, description="学习进度(0-100)")
+
+    # 断点续播：记录上次学到了哪一节课
+    last_lesson = fields.ForeignKeyField('models.Lesson', related_name='+', null=True, description="上次学到的课时")
+
+    joined_at = fields.DatetimeField(auto_now_add=True, description="加入时间")
+
+    class Meta:
+        table = "user_courses"
+        # 联合唯一索引：防止重复加入同一门课
+        unique_together = (("user", "course"),)

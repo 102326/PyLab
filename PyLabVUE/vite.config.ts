@@ -49,6 +49,8 @@ export default defineConfig({
   },
   // === 核心修复在这里 ===
   server: {
+    // host: '127.0.0.1', // 强制使用 IPv4
+    // port: 5173, // 端口号
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000', // 你的后端地址

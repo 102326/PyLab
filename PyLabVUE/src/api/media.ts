@@ -42,6 +42,10 @@ export class MediaApi {
     const res = await request.post<ApiResponse<VideoInfo>>('/media/videos', data)
     return res.data.data
   }
+  static async getMyVideos() {
+    const res = await request.get('/media/videos')
+    return res.data.data
+  }
 }
 export function uploadFile(file: File | Blob) {
   const formData = new FormData()

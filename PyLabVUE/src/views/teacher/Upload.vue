@@ -3,7 +3,9 @@
     <div class="max-w-5xl mx-auto">
       <div class="mb-8 text-center">
         <h2 class="text-3xl font-extrabold text-gray-900 tracking-tight">发布新课程</h2>
-        <p class="mt-2 text-sm text-gray-500">上传视频并填写课程信息，我们将自动为您生成课程主页</p>
+        <p class="mt-2 text-sm text-gray-500">
+          上传首个视频并填写基本信息，随后可进入编排页管理更多章节
+        </p>
       </div>
 
       <div class="bg-white shadow-xl rounded-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-2">
@@ -77,7 +79,7 @@
 
         <div class="p-8 space-y-8 flex flex-col">
           <h3 class="text-lg font-bold text-gray-800 flex items-center">
-            <el-icon class="mr-2 text-purple-500"><VideoPlay /></el-icon> 课程视频资源
+            <el-icon class="mr-2 text-purple-500"><VideoPlay /></el-icon> 课程首个视频
           </h3>
 
           <div
@@ -154,7 +156,7 @@
               :disabled="!isReady"
               @click="startPublish"
             >
-              {{ uploadState.status === 'uploading' ? '正在发布中...' : '立即发布课程' }}
+              {{ uploadState.status === 'uploading' ? '正在发布中...' : '创建并进入编排' }}
             </el-button>
           </div>
         </div>
@@ -213,7 +215,7 @@ const statusText = computed(() => {
     case 'processing':
       return '资源上传完成，正在创建课程...'
     case 'success':
-      return '发布成功！正在跳转...'
+      return '创建成功！正在跳转到编排页...'
     case 'error':
       return '发布失败，请重试'
     default:
@@ -315,6 +317,7 @@ const startPublish = async () => {
     const videoId = videoData.id
 
     // 4. 后端：创建课程
+    // [注意] course 变量在这里被捕获
     const course = await CourseApi.createCourse({
       title: form.title,
       desc: form.desc,
@@ -338,11 +341,12 @@ const startPublish = async () => {
 
     // 7. 完成
     uploadState.status = 'success'
-    ElMessage.success('课程发布成功！AI 正在后台为您构建知识库...')
+    ElMessage.success('课程创建成功！即将前往编排内容...')
 
-    // 延迟跳转到首页或课程列表
+    // [核心修改] 延迟跳转到课程编排页
     setTimeout(() => {
-      router.push('/')
+      // 使用刚刚创建的 course.id
+      router.push(`/teacher/course/${course.id}/edit`)
     }, 1500)
   } catch (error: any) {
     console.error(error)

@@ -1,80 +1,109 @@
 <template>
-  <RouterView />
+  <TheHeader />
+
+  <div class="min-h-[calc(100vh-64px)] bg-gray-50">
+    <RouterView />
+  </div>
 
   <button
     v-if="showNotifyButton"
     @click="enableNotification"
-    class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-all duration-300 animate-bounce cursor-pointer"
+    class="fixed bottom-32 right-8 z-50 flex items-center gap-2 px-4 py-2 bg-indigo-600/90 backdrop-blur text-white rounded-full shadow-lg hover:bg-indigo-700 transition-all duration-300 animate-bounce cursor-pointer border border-indigo-400"
   >
     <span>🔔</span>
-    <span>开启桌面消息提醒</span>
+    <span class="text-sm font-medium">开启消息提醒</span>
   </button>
-  <button
-    @click="goToChat"
-    class="flex items-center justify-center w-14 h-14 bg-indigo-600 text-white rounded-full shadow-xl hover:bg-indigo-700 transition-all hover:scale-110 active:scale-95"
-    title="打开聊天"
+
+  <el-popover
+    v-if="!isChatPage"
+    placement="left-end"
+    :width="200"
+    trigger="hover"
+    popper-class="!p-2 !rounded-xl"
   >
-    <span class="text-2xl">💬</span>
-  </button>
+    <template #reference>
+      <div
+        class="fixed bottom-8 right-8 z-50 flex items-center justify-center w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl hover:bg-indigo-700 transition-all cursor-pointer hover:scale-110"
+      >
+        <el-icon class="text-2xl"><Comment /></el-icon>
+      </div>
+    </template>
+
+    <div class="flex flex-col gap-1">
+      <div
+        class="flex items-center gap-3 p-3 rounded-lg hover:bg-indigo-50 cursor-pointer transition-colors"
+        @click="router.push('/chat/ai')"
+      >
+        <div
+          class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center"
+        >
+          <el-icon><MagicStick /></el-icon>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-sm font-bold text-gray-800">AI 助教</span>
+          <span class="text-xs text-gray-400">智能问答</span>
+        </div>
+      </div>
+
+      <div
+        class="flex items-center gap-3 p-3 rounded-lg hover:bg-green-50 cursor-pointer transition-colors"
+        @click="router.push('/chat/user')"
+      >
+        <div
+          class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center"
+        >
+          <el-icon><ChatDotRound /></el-icon>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-sm font-bold text-gray-800">消息中心</span>
+          <span class="text-xs text-gray-400">用户沟通</span>
+        </div>
+      </div>
+    </div>
+  </el-popover>
 </template>
 
 <script setup lang="ts">
 import { onMounted, watch, computed } from 'vue'
+import { RouterView, useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { RouterView, useRouter } from 'vue-router'
 import { useSocketStore } from '@/stores/socket'
-// 引入你的 Hook
 import { useBrowserNotification } from '@/composables/useBrowserNotification'
+import TheHeader from '@/components/layout/TheHeader.vue'
+import { Comment, MagicStick, ChatDotRound } from '@element-plus/icons-vue' // [新增图标]
+
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const socketStore = useSocketStore()
 
-const goToChat = () => {
-  // 你可以根据需要跳转到具体的聊天对象的页面，这里先跳到聊天列表主页
-  router.push('/chat')
-}
+// [修改] 判断是否在聊天页面 (只要路径含 /chat/ 就隐藏)
+const isChatPage = computed(() => route.path.includes('/chat/'))
 
-// 1. 引入通知功能
 const { permission, requestPermission, sendNotification, subscribeToPush } =
   useBrowserNotification()
 
-// 计算属性：控制按钮显示（只有是 'default' 状态且浏览器支持时才显示）
-// 'granted' = 已允许, 'denied' = 已拒绝, 'default' = 未询问
 const showNotifyButton = computed(() => {
   return permission.value === 'default' && 'Notification' in window
 })
 
-// 点击按钮请求权限
 const enableNotification = async () => {
   const granted = await requestPermission()
   if (granted) {
-    // 1. 原地通知
     sendNotification('系统通知', { body: '通知已开启！' })
-
-    // 2. [新增] 注册 Web Push 订阅
-    // 这一步会触发浏览器向谷歌/火狐服务器注册，并把 token 发给你的后端
     await subscribeToPush()
   }
 }
 
-// 2. 核心逻辑：监听 socketStore 中的新消息
 watch(
   () => socketStore.latestMessage,
   (newMessage) => {
-    // 基础校验
     if (!newMessage) return
-
-    // 可以在这里过滤消息类型，比如只处理聊天消息
-    // 注意：newMessage 里的字段要和后端返回的保持一致
     if (newMessage.type === 'chat') {
-      // 调用 Hook 发送通知
-      // Hook 内部会自动判断：如果 document.hidden 为 false (你在看网页)，则不弹窗
       sendNotification(`收到新消息`, {
-        // 如果后端没返回 senderName，就显示通用文案
         body: newMessage.content || '您有一条新消息',
         icon: '/favicon.ico',
-        tag: 'chat-msg', // 标签，避免消息堆叠
-        // renotify: true, // 即使标签一样，新消息来了也重新震动/提示
+        tag: 'chat-msg',
       })
     }
   },
@@ -83,13 +112,11 @@ watch(
 
 onMounted(() => {
   userStore.initUser()
-
   if (userStore.token && userStore.userInfo?.id) {
     socketStore.connect()
   }
 })
 
-// 监听 Token 变化
 watch(
   () => userStore.token,
   (newToken) => {
@@ -101,5 +128,3 @@ watch(
   },
 )
 </script>
-
-<style scoped></style>

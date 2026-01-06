@@ -92,10 +92,15 @@ class VectorDBService:
             print(f"⚠️ 初始化向量字段跳过 (可能已存在或不支持): {e}")
 
     @classmethod
-    async def search_similar_courses(cls, query_text: str, limit: int = 5):
+    async def search_similar_courses(cls, query_text: str, limit: int = 20, threshold: float = 0.34):
         """
-        向量搜索
+        [混合检索专用] 向量搜索 (仅搜索已发布的课程)
+        :param query_text: 搜索关键词
+        :param limit: 返回数量限制
+        :param threshold: 距离阈值 (0.0=完全一样, 1.0=完全不同)。
+                          建议值: 0.35~0.4。如果搜不到，调大；搜得太杂，调小。
         """
+        # 1. 获取搜索词的向量
         embedding = await cls.get_embedding(query_text)
         if not embedding:
             return []
@@ -103,19 +108,69 @@ class VectorDBService:
         from app.models.course import Course
         conn = Course._meta.db
 
-        # 使用 <=> (余弦距离) 排序
         embedding_str = str(embedding)
+
+        # 2. 构造 SQL
+        # 核心逻辑：
+        # - 计算余弦距离: embedding <=> '{embedding_str}'
+        # - 过滤: is_published = true (只搜已发布)
+        # - 过滤: distance < threshold (只搜距离足够近的)
         sql = f"""
-            SELECT id, title, "desc", cover, price,
-                   embedding <=> '{embedding_str}' as distance
-            FROM courses
-            ORDER BY distance ASC
-            LIMIT {limit};
-        """
+                SELECT id, title, "desc", cover, price,
+                       embedding <=> '{embedding_str}' as distance
+                FROM courses
+                WHERE is_published = true 
+                  AND (embedding <=> '{embedding_str}') < {threshold}
+                ORDER BY distance ASC
+                LIMIT {limit};
+            """
 
         try:
             results = await conn.execute_query_dict(sql)
+
+            # === 🔍 [调试日志] 打印真实距离，方便调参 ===
+            # 正式上线后可以将这部分 print 注释掉
+            print(f"\n🔍 [Debug 向量搜索] 关键词: '{query_text}' (阈值: {threshold})")
+            if not results:
+                print("   (结果为空: 所有课程的语义距离均大于阈值，已被过滤)")
+
+            for item in results:
+                # 打印 课程标题 和 算出来的距离
+                print(f"   - 课程: {item['title']} | 距离: {item['distance']}")
+            print("-" * 40)
+
             return results
         except Exception as e:
             print(f"❌ 向量搜索失败: {e}")
+            return []
+
+    @classmethod
+    async def search_similar_by_id(cls, course_id: int, limit: int = 5):
+        """
+        [🚀 极速版] 直接利用数据库里已有的向量进行搜索 (无需调用 Ollama)
+        原理：Postgres 内部子查询，速度极快
+        """
+        from app.models.course import Course
+        conn = Course._meta.db
+
+        # SQL 逻辑：
+        # 1. (SELECT embedding FROM courses WHERE id = {course_id}) -> 取出当前课程存好的向量
+        # 2. embedding <=> (...) -> 计算距离
+        # 3. WHERE id != {course_id} -> 排除自己
+        sql = f"""
+                SELECT id, title, "desc", cover, price, view_count,
+                       embedding <=> (SELECT embedding FROM courses WHERE id = {course_id}) as distance
+                FROM courses
+                WHERE id != {course_id} 
+                  AND embedding IS NOT NULL
+                ORDER BY distance ASC
+                LIMIT {limit};
+            """
+
+        try:
+            # execute_query_dict 会返回字典列表，刚好给前端用
+            results = await conn.execute_query_dict(sql)
+            return results
+        except Exception as e:
+            print(f"❌ 数据库内向量搜索失败: {e}")
             return []

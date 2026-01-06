@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     # 向量模型 (用于本地 HuggingFace)
     # 推荐使用 BAAI/bge-small-zh-v1.5 (小巧强悍) 或 BAAI/bge-m3 (全能)
     EMBEDDING_MODEL_NAME: str = "BAAI/bge-small-zh-v1.5"
+    ES_URL: str = "http://127.0.0.1:9200"
+    # === [新增] RabbitMQ 配置 ===
+    # 格式: amqp://账号:密码@地址:端口/
+    # 根据你的 docker-compose 配置: user / password / 5672
+    RABBITMQ_URL: str = "amqp://user:password@127.0.0.1:5672/"
 
     # === 核心配置：加载 .env 文件 ===
     model_config = SettingsConfigDict(

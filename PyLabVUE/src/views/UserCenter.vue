@@ -38,6 +38,24 @@
           </h3>
           <div class="grid grid-cols-2 gap-4">
             <div
+              class="col-span-2 flex items-center justify-between p-4 bg-indigo-50 rounded-xl cursor-pointer transition-all hover:bg-indigo-100 border border-indigo-100 hover:shadow-md group"
+              @click="router.push('/chat')"
+            >
+              <div class="flex items-center gap-3">
+                <div
+                  class="bg-white p-2 rounded-lg text-indigo-600 group-hover:scale-110 transition-transform"
+                >
+                  <el-icon class="text-xl"><ChatDotRound /></el-icon>
+                </div>
+                <div>
+                  <div class="font-bold text-indigo-900 text-sm">AI 学习助手</div>
+                  <div class="text-xs text-indigo-400">有问题？随时问我</div>
+                </div>
+              </div>
+              <el-icon class="text-indigo-300"><ArrowRight /></el-icon>
+            </div>
+
+            <div
               class="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-xl cursor-pointer transition-all hover:bg-blue-50 hover:text-blue-600 hover:shadow-md"
               @click="ElMessage.info('我的课程功能开发中...')"
             >
@@ -62,15 +80,66 @@
           <div v-if="isVerifiedTeacher" class="space-y-4 animate-fade-in">
             <div
               class="flex flex-col items-center justify-center p-6 bg-purple-50 rounded-xl cursor-pointer transition-all hover:bg-purple-100 border border-purple-100 hover:shadow-md"
-              @click="router.push('/upload')"
+              @click="router.push('/teacher/upload')"
             >
               <el-icon class="text-purple-600 text-2xl mb-2"><Upload /></el-icon>
               <span>发布新课程</span>
             </div>
-            <p class="text-xs text-gray-400 text-center">感谢您为社区贡献知识</p>
+
+            <div v-if="myCourses.length > 0" class="mt-4 border-t border-gray-100 pt-4">
+              <div class="flex justify-between items-center mb-2 px-1">
+                <h4 class="text-sm font-bold text-gray-600">管理已发布课程</h4>
+                <el-button link type="primary" size="small" @click="fetchMyCourses">刷新</el-button>
+              </div>
+
+              <div class="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                <div
+                  v-for="course in myCourses"
+                  :key="course.id"
+                  class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all group"
+                >
+                  <div class="truncate flex-1 mr-2">
+                    <div class="flex items-center">
+                      <span class="text-sm font-medium text-gray-800 truncate">{{
+                        course.title
+                      }}</span>
+                    </div>
+                    <div class="flex items-center mt-1">
+                      <span
+                        class="text-[10px] px-1.5 py-0.5 rounded border"
+                        :class="
+                          course.is_published
+                            ? 'bg-green-50 text-green-600 border-green-100'
+                            : 'bg-orange-50 text-orange-600 border-orange-100'
+                        "
+                      >
+                        {{ course.is_published ? '已发布' : '草稿' }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <el-button
+                      size="small"
+                      type="primary"
+                      plain
+                      @click="router.push(`/teacher/course/${course.id}/edit`)"
+                    >
+                      <el-icon><Edit /></el-icon>
+                    </el-button>
+
+                    <el-button size="small" type="danger" plain @click="handleDeleteCourse(course)">
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p v-else class="text-xs text-gray-400 text-center mt-4">您还没有发布任何课程</p>
           </div>
 
-          <div v-else class="flex flex-col items-center justify-center h-full py-4">
+          <div v-else class="flex flex-col items-center justify-center h-full py-4 min-h-[200px]">
             <div v-if="verifyStatus === 1" class="text-center animate-pulse">
               <el-icon class="text-orange-500 text-4xl mb-2"><Timer /></el-icon>
               <p class="text-gray-600 font-medium">讲师资格审核中</p>
@@ -108,8 +177,19 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { AuthApi } from '@/api/auth'
+import { CourseApi } from '@/api/course'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Reading, Star, Upload, Timer, CircleClose } from '@element-plus/icons-vue'
+import {
+  Reading,
+  Star,
+  Upload,
+  Timer,
+  CircleClose,
+  ChatDotRound,
+  ArrowRight,
+  Edit,
+  Delete, // [新增] 引入 Delete 图标
+} from '@element-plus/icons-vue'
 import type { TeacherProfile } from '@/model/auth'
 
 const router = useRouter()
@@ -118,17 +198,52 @@ const userStore = useUserStore()
 // 本地状态
 const teacherProfile = ref<TeacherProfile | null>(null)
 const role = ref(0) // 0:学生, 1:老师
+const myCourses = ref<any[]>([])
 
-// 刷新数据方法 (提取出来方便复用)
+// 刷新数据方法
 const fetchLatestData = async () => {
   try {
-    // 优先尝试从 store 的刷新方法获取 (如果有)，或者直接调 API
-    // 这里我们直接调 API 获取最新的 profile
     const data = await AuthApi.getMe()
     role.value = data.user_info.role
     teacherProfile.value = data.teacher_profile
+
+    // 如果是认证讲师，顺便拉取课程
+    if (role.value === 1 && teacherProfile.value?.verify_status === 2) {
+      fetchMyCourses()
+    }
   } catch (error) {
     console.error('获取用户信息失败', error)
+  }
+}
+
+// 获取我的课程
+const fetchMyCourses = async () => {
+  try {
+    const res = await CourseApi.getMyCourses()
+    myCourses.value = res
+  } catch (e) {
+    console.error('获取课程失败', e)
+  }
+}
+
+// [新增] 删除课程处理函数
+const handleDeleteCourse = async (course: any) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除课程《${course.title}》吗？\n删除后不可恢复！`,
+      '危险操作',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+
+    await CourseApi.deleteCourse(course.id) // 需确保 api/course.ts 里有 deleteCourse
+    ElMessage.success('课程已删除')
+    fetchMyCourses() // 刷新列表
+  } catch (e) {
+    // 用户取消或出错，不做处理
   }
 }
 
@@ -137,13 +252,10 @@ onMounted(() => {
   fetchLatestData()
 })
 
-// === 核心：监听全局数据变化 ===
-// 当全局 Socket 收到 OCR 结果并更新了 UserStore 时，这里会自动响应
-// 也可以选择在这里再次主动拉取一次 fetchLatestData() 确保 teacherProfile 是最新的
+// 监听全局数据变化
 watch(
   () => userStore.userInfo,
   () => {
-    console.log('检测到用户信息更新，刷新档案状态...')
     fetchLatestData()
   },
 )
@@ -197,5 +309,20 @@ const handleLogout = () => {
   to {
     opacity: 1;
   }
+}
+
+/* 自定义滚动条样式 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 2px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #ccc;
 }
 </style>
