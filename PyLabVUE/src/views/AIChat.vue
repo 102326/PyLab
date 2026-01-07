@@ -197,12 +197,17 @@ const sendMessage = async () => {
   try {
     // 2. 发起请求 (带 Header)
     const res = await axios.post(
-      'http://127.0.0.1:8000/ai/chat',
-      { question: question },
+      'http://127.0.0.1:8000/ai/chat', // 注意：vite 代理通常是 /api/ai/chat，或者直接 /ai/chat 取决于你的 rewrite 配置
+      {
+        message: question, // ✅ 改正这里：把 key 从 question 改为 message
+        history: [], // (可选) 建议加上历史记录字段
+      },
       {
         headers: {
-          Authorization: `Bearer ${token}`, // 👈 必须带上这个！
+          Authorization: `Bearer ${token}`,
         },
+        // 如果你要处理流式响应，记得加上这个
+        responseType: 'stream',
       },
     )
 

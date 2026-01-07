@@ -1,23 +1,14 @@
 // src/api/ai.ts
 import request from '@/utils/request'
-import type { ApiResponse } from '@/model/common'
+import type { ChatReq } from '@/model/ai'
 
-export interface AIChatRes {
-  reply: string
-}
-
-export class AIApi {
-  /**
-   * 发送消息给 AI
-   * @param content 用户输入的问题
-   */
-  static async chat(content: string) {
-    // 假设后端接口是 /chat/ai 或者复用 /chat/semantic
-    // 这里我们假设后端有一个专门处理对话的接口
-    // 如果没有，可以先用 /chat/semantic 凑合，或者在后端 app/views/chat.py 加一个
-    const res = await request.post<ApiResponse<AIChatRes>>('/chat/ask', {
-      question: content,
+export class AiApi {
+  static async chat(data: ChatReq) {
+    // request 已经封装了 baseURL 和 Token 拦截器，不用手动写 header
+    // 注意：如果是流式响应，axios 处理起来比较麻烦，建议用 fetch 或专门的流式库
+    // 这里演示普通调用，流式调用推荐在组件内用 fetch + EventSourceParser
+    return request.post('/ai/chat', data, {
+      responseType: 'stream', // 如果是流式
     })
-    return res.data.data
   }
 }
