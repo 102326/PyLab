@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     # 注意：Langfuse SDK 默认读的是 LANGFUSE_HOST，你代码里写的是 BASE_URL
     # 为了防止 SDK 读不到，建议这里还是叫 LANGFUSE_HOST
     # 或者你在 .env 里同时写上 LANGFUSE_HOST=...
-    LANGFUSE_HOST: str = "http://localhost:3000"
+    LANGFUSE_HOST: str = "http://127.0.0.1:3000"
 
     model_config = SettingsConfigDict(
         env_file=".env",

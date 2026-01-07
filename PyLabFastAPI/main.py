@@ -1,4 +1,8 @@
 # PyLabFastAPI/main.py
+
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from scalar_fastapi import get_scalar_api_reference
@@ -91,7 +95,7 @@ async def lifespan(app: FastAPI):
 # 将 lifespan 函数传给 FastAPI
 app = FastAPI(lifespan=lifespan)
 
-# 👇👇👇 2. [核心修复] 添加 CORS 中间件配置
+# 👇👇👇 2. [CORS 配置]
 origins = [
     "http://localhost:5173",    # Vue 默认端口
     "http://127.0.0.1:5173",    # 以防万一
