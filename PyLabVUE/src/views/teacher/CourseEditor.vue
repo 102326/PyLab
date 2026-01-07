@@ -90,7 +90,7 @@
 
           <div v-else-if="currentLesson.type === 'problem'" class="flex-1 flex flex-col">
             <div
-              v-if="!problemForm.id && !currentLesson.problem"
+              v-if="!problemForm.id && !currentLesson.problem && !isCreating"
               class="flex-1 flex flex-col items-center justify-center space-y-4"
             >
               <el-empty description="当前课时未关联题目" />
@@ -159,6 +159,7 @@ const loading = ref(false)
 const chapters = ref<Chapter[]>([])
 const activeNames = ref<number[]>([]) // 控制折叠面板
 const currentLesson = ref<any>(null)
+const isCreating = ref(false) // [新增] 标记是否正在创建新题目
 
 // OJ 表单
 const problemForm = reactive({
@@ -187,6 +188,8 @@ const initData = async () => {
 // 选中课时
 const handleLessonSelect = (lesson: any) => {
   currentLesson.value = lesson
+  isCreating.value = false // [新增] 切换课时时重置创建状态
+
   // 回显 OJ 数据
   if (lesson.type === 'problem' && lesson.problem) {
     problemForm.id = lesson.problem.id
@@ -203,36 +206,45 @@ const handleLessonSelect = (lesson: any) => {
   }
 }
 
-// === ⚠️ 关键修复：请替换为你真实的七牛云测试域名 ===
+// === 七牛云视频地址解析 ===
 const getVideoUrl = (key: string) => {
-  // 必须带 http:// 或 https://，例如: 'http://r8q8abc.hn-bkt.clouddn.com'
-  const domain = 'http://YOUR_REAL_DOMAIN_HERE.com'
+  // [确认] 使用你提供的真实域名
+  const domain = 'http://t7pptaw4h.hb-bkt.clouddn.com'
   return `${domain}/${key}`
 }
 
+// 点击“创建新题目”
 const initCreateProblem = () => {
+  isCreating.value = true // [新增] 进入创建模式，强制显示表单
   problemForm.title = currentLesson.value.title
   problemForm.content = '### 题目描述'
 }
 
+// 保存题目
 const saveProblem = async () => {
   savingProblem.value = true
   try {
     let res
-    if (problemForm.id) {
+    // 如果 problemForm.id 存在且不为0，则是更新；否则是创建
+    if (problemForm.id && problemForm.id !== 0) {
       res = await OJApi.updateProblem(problemForm.id, problemForm)
     } else {
       res = await OJApi.createProblem(problemForm)
-      // 绑定到课时
+      // 创建后，绑定到当前课时
       await CourseApi.updateLesson(currentLesson.value.id, {
         title: currentLesson.value.title,
         type: 'problem',
         rank: currentLesson.value.rank,
         problem_id: res.id,
       })
+
+      // [关键修复] 创建成功后，手动更新本地状态，防止跳回“空状态”
+      currentLesson.value.problem = res
+      problemForm.id = res.id
+      isCreating.value = false // 退出创建模式（因为已经有真实数据了）
     }
     ElMessage.success('题目保存成功')
-    initData() // 刷新拿到最新的 problem 数据
+    initData() // 刷新拿到最新的 problem 数据 (保险起见)
   } catch (e) {
     ElMessage.error('保存失败')
   } finally {

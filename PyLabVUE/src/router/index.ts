@@ -1,6 +1,7 @@
 // src/router/index.ts
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import AIChat from '@/views/AIChat.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -73,6 +74,12 @@ const router = createRouter({
           name: 'course-editor',
           component: () => import('../views/teacher/CourseEditor.vue'),
           meta: { requiresAuth: true, role: 1 }, // 仅讲师
+        },
+        {
+          path: '/chat',
+          name: 'AIChat',
+          component: AIChat,
+          meta: { title: 'AI 助教' },
         },
       ],
     },

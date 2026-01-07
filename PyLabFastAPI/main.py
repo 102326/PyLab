@@ -13,7 +13,8 @@ from app.views.chat import router as chat_router
 from app.views.notification import router as notification_router
 from app.views import ws
 from app.views import oj
-
+from app.views import ai
+from fastapi.middleware.cors import CORSMiddleware
 # 引入服务
 from app.core.es import ESClient
 from app.services.es_sync import CourseESService
@@ -90,7 +91,19 @@ async def lifespan(app: FastAPI):
 # 将 lifespan 函数传给 FastAPI
 app = FastAPI(lifespan=lifespan)
 
-
+# 👇👇👇 2. [核心修复] 添加 CORS 中间件配置
+origins = [
+    "http://localhost:5173",    # Vue 默认端口
+    "http://127.0.0.1:5173",    # 以防万一
+    "http://localhost:8080",    # 备用
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,      # ✅ 指定白名单
+    allow_credentials=True,     # ✅ 允许带 Token/Cookie
+    allow_methods=["*"],        # 允许所有方法 (POST, GET, OPTIONS...)
+    allow_headers=["*"],        # 允许所有 Header
+)
 # === 注册文档路由 ===
 @app.get("/scalar", include_in_schema=False)
 async def scalar_docs():
@@ -107,6 +120,7 @@ app.include_router(course_router)
 app.include_router(chat_router)
 app.include_router(notification_router)
 app.include_router(oj.router)
+app.include_router(ai.router)
 app.include_router(ws.router, tags=["WebSocket"])
 
 if __name__ == '__main__':
