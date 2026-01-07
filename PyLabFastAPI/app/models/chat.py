@@ -1,47 +1,38 @@
 # PyLabFastAPI/app/models/chat.py
 from tortoise import fields, models
+import uuid
+
+
+class ChatSession(models.Model):
+    """
+    会话表：相当于一个“聊天房间”
+    """
+    id = fields.UUIDField(pk=True, default=uuid.uuid4)
+    user = fields.ForeignKeyField('models.User', related_name='sessions', description="所属用户")
+    title = fields.CharField(max_length=100, default="新对话", description="会话标题")
+    is_deleted = fields.BooleanField(default=False, description="逻辑删除")
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "chat_sessions"
+        ordering = ["-updated_at"]
 
 
 class ChatMessage(models.Model):
-    """聊天消息表"""
-    id = fields.IntField(pk=True)
-    # 发送者 (关联 User 表)
-    sender = fields.ForeignKeyField('models.User', related_name='sent_messages')
-    # 接收者
-    receiver = fields.ForeignKeyField('models.User', related_name='received_messages')
+    """
+    消息表：存储每一句对话
+    """
+    id = fields.UUIDField(pk=True, default=uuid.uuid4)
+    session = fields.ForeignKeyField('models.ChatSession', related_name='messages', index=True)
+    role = fields.CharField(max_length=20, description="user/assistant/system")
+    content = fields.TextField(description="对话内容")
 
-    content = fields.TextField(description="消息内容")
-    # 消息类型: text, image, video... (目前先做 text)
-    msg_type = fields.CharField(max_length=20, default="text")
+    # 扩展字段：未来可以存 Token 消耗、引用来源等
+    meta = fields.JSONField(null=True, default={})
 
-    is_read = fields.BooleanField(default=False, description="是否已读")
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
         table = "chat_messages"
         ordering = ["created_at"]
-
-
-# AI 问答记录表
-class AIChatRecord(models.Model):
-    """AI 智能问答记录表"""
-    id = fields.IntField(pk=True)
-
-    # 关联到哪个用户
-    user = fields.ForeignKeyField('models.User', related_name='ai_chats')
-
-    # 用户的提问
-    question = fields.TextField()
-
-    # AI 的回答
-    answer = fields.TextField()
-
-    # 当时参考的上下文 (截取一部分存起来，方便回溯)
-    sources = fields.TextField(null=True, description="RAG参考资料摘要")
-
-    # 记录时间
-    created_at = fields.DatetimeField(auto_now_add=True)
-
-    class Meta:
-        table = "ai_chat_records"
-        ordering = ["-created_at"]  # 默认按时间倒序

@@ -1,7 +1,6 @@
 // src/router/index.ts
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import AIChat from '@/views/AIChat.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -53,33 +52,30 @@ const router = createRouter({
     {
       path: '/chat',
       meta: { title: '消息中心', requiresAuth: true },
-      // 默认跳转到 AI，或者你可以做一个中间页
+      // 1. 默认重定向到 AI 页面，避免空屏
       redirect: '/chat/ai',
       children: [
+        // === 1. 私信模块 (保留原样) ===
         {
-          path: 'user', // /chat/user
+          path: 'user', // 访问路径: /chat/user
           name: 'user-chat',
-          // ⚠️ 注意：这里引用的是改名后的 UserChatView.vue
           component: () => import('@/views/chat/UserChatView.vue'),
           meta: { title: '消息中心' },
         },
+
+        // === 2. AI 模块 (使用新版流式页面) ===
         {
-          path: 'ai', // /chat/ai
+          path: 'ai', // 访问路径: /chat/ai
           name: 'ai-chat',
+          // ⚠️ 重点：指向新写的、支持流式输出的 AIChatView.vue
           component: () => import('@/views/chat/AIChatView.vue'),
           meta: { title: 'AI 实验室' },
         },
         {
-          path: '/teacher/course/:id/edit', // 编辑课程内容
+          path: '/teacher/course/:id/edit',
           name: 'course-editor',
-          component: () => import('../views/teacher/CourseEditor.vue'),
+          component: () => import('@/views/teacher/CourseEditor.vue'),
           meta: { requiresAuth: true, role: 1 }, // 仅讲师
-        },
-        {
-          path: '/chat',
-          name: 'AIChat',
-          component: AIChat,
-          meta: { title: 'AI 助教' },
         },
       ],
     },
