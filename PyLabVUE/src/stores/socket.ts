@@ -7,7 +7,7 @@ import router from '@/router'
 
 export const useSocketStore = defineStore('socket', () => {
   const isConnected = ref(false)
-  // [新增] 用于存储最新收到的消息，供全局监听使用
+  // 用于存储最新收到的消息，供全局监听使用
   const latestMessage = ref<any>(null)
 
   let socket: WebSocket | null = null
@@ -45,7 +45,7 @@ export const useSocketStore = defineStore('socket', () => {
       try {
         if (event.data === 'pong') return
         const msg = JSON.parse(event.data)
-        // [新增] 更新最新消息状态，触发 App.vue 的 watch
+        // 更新最新消息状态
         latestMessage.value = msg
         handleMessage(msg)
       } catch (e) {
@@ -121,7 +121,7 @@ export const useSocketStore = defineStore('socket', () => {
         duration: 5000,
       })
     } else if (msg.type === 'chat') {
-      // 聊天消息
+      // 1. 添加消息到聊天记录
       chatStore.addMessage({
         sender_id: msg.from_user_id,
         receiver_id: userStore.userInfo?.id || 0,
@@ -129,15 +129,26 @@ export const useSocketStore = defineStore('socket', () => {
         created_at: msg.time,
       })
 
-      // 如果当前没在跟这个人聊，弹窗提示 (应用内通知)
-      if (chatStore.currentDestId !== msg.from_user_id) {
+      // 2. [新增] 强制刷新联系人列表，确保左侧"最新消息"实时更新
+      await chatStore.loadContacts()
+
+      // 3. [优化] 智能通知判断逻辑
+      // 条件1: 当前聊天的对象 不是 发送消息的人
+      const isChattingWithOther = chatStore.currentDestId !== msg.from_user_id
+      // 条件2: 浏览器当前在后台 (即使打开了对话框，人没在看)
+      const isWindowHidden = document.visibilityState === 'hidden'
+
+      if (isChattingWithOther || isWindowHidden) {
         ElNotification.info({
           title: '新消息',
           message: `收到一条新消息: ${msg.content}`,
           duration: 5000,
           // 点击通知跳转
           onClick: () => {
-            router.push(`/chat?targetId=${msg.from_user_id}`)
+            // 尝试聚焦窗口
+            window.focus()
+            // [修复] 明确跳转路径为 /chat/user
+            router.push(`/chat/user?targetId=${msg.from_user_id}`)
             ElNotification.closeAll()
           },
         })
@@ -145,6 +156,5 @@ export const useSocketStore = defineStore('socket', () => {
     }
   }
 
-  // [修改] 记得把 latestMessage 导出出去
   return { isConnected, latestMessage, connect, disconnect, send }
 })

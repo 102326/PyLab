@@ -1,76 +1,76 @@
 // src/sw.js
 
-// self 指向 Service Worker 全局作用域
 self.addEventListener('install', (event) => {
-  console.log('[Service Worker] 安装成功')
-  // 强制立即激活新的 Service Worker
   self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
-  console.log('[Service Worker] 激活成功')
-  // 让 Service Worker 立即接管所有页面
   event.waitUntil(self.clients.claim())
 })
 
-// Let's define a placeholder for the push event now
-// 核心：监听来自浏览器厂商服务器的推送事件
+// === 核心：接收推送 ===
 self.addEventListener('push', function (event) {
   console.log('[Service Worker] 收到推送消息', event)
 
-  let data = { title: '新消息', body: '您有一条新消息' }
+  let data = {
+    title: '新私信',
+    body: '您收到一条新消息',
+    url: '/chat/user' // ⚡️ 默认跳转到私信页面
+  }
 
   if (event.data) {
     try {
-      // 解析后端发送过来的 JSON 数据
-      data = event.data.json()
-      console.log('推送数据:', data)
+      const jsonPayload = event.data.json()
+      // 合并后端发来的数据
+      data = { ...data, ...jsonPayload }
+      // 确保后端发来的 url 字段被使用，如果没有，回退到 /chat/user
+      if (!data.url) data.url = '/chat/user'
     } catch (e) {
-      console.warn('推送数据不是 JSON 格式，使用纯文本')
       data.body = event.data.text()
     }
   }
 
-  const title = data.title || '新消息'
   const options = {
     body: data.body,
-    icon: '/favicon.ico', // 确保这个路径下有图标
-    badge: '/favicon.ico', // 安卓状态栏小图标
-    data: data.url || '/', // 点击通知后跳转的链接存这里
+    icon: '/favicon.ico',
+    badge: '/favicon.ico',
+    // ⚡️ 将跳转链接存在 data 属性里，供点击事件使用
+    data: { url: data.url },
     vibrate: [100, 50, 100],
     actions: [
-      { action: 'explore', title: '查看' },
+      { action: 'explore', title: '回复' },
       { action: 'close', title: '关闭' },
     ],
   }
 
-  // 弹出系统通知
-  event.waitUntil(self.registration.showNotification(title, options))
+  event.waitUntil(self.registration.showNotification(data.title, options))
 })
 
-// 监听通知点击事件
+// === 核心：点击通知 ===
 self.addEventListener('notificationclick', function (event) {
-  console.log('[Service Worker] 通知被点击')
-  event.notification.close() // 关闭通知
+  event.notification.close() // 关闭通知面板
 
   if (event.action === 'close') return
 
-  // 点击通知后，尝试打开或聚焦到应用的窗口
+  // 获取之前存在 options.data 里的链接
+  const urlToOpen = event.notification.data.url || '/chat/user'
+
   event.waitUntil(
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then(function (clientList) {
-        // 如果已经有窗口打开了，就聚焦它
+        // 1. 尝试寻找已经打开的本应用窗口
         for (let i = 0; i < clientList.length; i++) {
           const client = clientList[i]
+          // 只要是本域名的窗口
           if (client.url.includes(self.registration.scope) && 'focus' in client) {
-            return client.focus()
+            // 聚焦窗口并跳转到指定页面
+            return client.focus().then(c => c.navigate(urlToOpen))
           }
         }
-        // 如果没有窗口打开，就新开一个
+        // 2. 如果没有打开，则新开窗口
         if (clients.openWindow) {
-          // 这里可以取上面存的 data.url 跳到特定页面
-          return clients.openWindow('/')
+          return clients.openWindow(urlToOpen)
         }
       }),
   )

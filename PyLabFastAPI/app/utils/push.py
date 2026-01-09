@@ -68,7 +68,7 @@ async def send_push_to_user(target_user_id: int, content: str, title: str = "新
     payload = {
         "title": title,
         "body": content,
-        "url": "/chat"
+        "url": "/chat/user"
     }
 
     new_subs = []

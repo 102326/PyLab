@@ -171,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue' // [修改] 引入 onUnmounted
 import { useRoute } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import { useSocketStore } from '@/stores/socket'
@@ -212,9 +212,9 @@ const isAudio = (content?: string) => {
   return (
     lower.endsWith('.mp3') ||
     lower.endsWith('.wav') ||
-    lower.endsWith('.webm') || // <--- 新增支持
-    lower.endsWith('.ogg') || // <--- 新增支持
-    lower.endsWith('.m4a') || // <--- 新增支持
+    lower.endsWith('.webm') ||
+    lower.endsWith('.ogg') ||
+    lower.endsWith('.m4a') ||
     (lower.startsWith('http') && lower.includes('voice_'))
   )
 }
@@ -242,7 +242,7 @@ const playAudio = (url: string) => {
 const handleSendAudio = async () => {
   console.log('正在停止录音...')
 
-  // 1. 等待录音文件生成 (不再需要 setTimeout)
+  // 1. 等待录音文件生成
   const blob = await stopRecording()
 
   if (!blob) {
@@ -306,12 +306,8 @@ const handlePaste = async (event: ClipboardEvent) => {
   // 如果没找到图片，就当作普通粘贴，不阻止默认行为（让文字上屏）
   if (!imageFile) return
 
-  // 3. 找到了图片，阻止默认行为（防止文件名粘贴进输入框）
-  // event.preventDefault() // 视情况而定，有些浏览器需要阻止
-
   try {
-    // 4. 确认发送？(为了体验更爽，通常直接发，或者弹个确认框)
-    // 这里我们可以做一个简单的 Loading 提示
+    // 4. 确认发送？(为了体验更爽，通常直接发)
     const loading = ElLoading.service({
       lock: true,
       text: '正在粘贴发送图片...',
@@ -320,7 +316,7 @@ const handlePaste = async (event: ClipboardEvent) => {
 
     // 5. 复用之前的上传逻辑
     const res = await uploadFile(imageFile)
-    const imgUrl = res.data.data.url // 假设后端返回结构
+    const imgUrl = res.data.data.url
 
     if (imgUrl) {
       const targetId = chatStore.currentDestId
@@ -345,9 +341,6 @@ const handlePaste = async (event: ClipboardEvent) => {
     }
 
     loading.close()
-
-    // 清空输入框里可能残留的文件名（如果有的话）
-    // inputContent.value = ''
   } catch (e) {
     console.error('粘贴发送失败', e)
     ElMessage.error('图片粘贴失败')
@@ -358,6 +351,12 @@ const handlePaste = async (event: ClipboardEvent) => {
 onMounted(async () => {
   await chatStore.loadContacts()
   checkRouteParam()
+})
+
+// [新增] 离开页面时，清空当前选中的聊天对象
+onUnmounted(() => {
+  // 传入 0 或 null 来清空，这样 Socket 就会知道你现在"没在聊天"
+  chatStore.selectContact(0)
 })
 
 // 监听路由参数变化
@@ -419,7 +418,6 @@ const fireConfetti = () => {
     }
 
     const particleCount = 50 * (timeLeft / duration)
-    // 从屏幕左下角和右下角发射
     confetti({
       ...defaults,
       particleCount,
