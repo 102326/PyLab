@@ -1,32 +1,44 @@
+# PyLabFastAPI/app/core/mq.py
 import json
 import logging
-from aio_pika import connect_robust, Message, DeliveryMode, IncomingMessage
+import aio_pika
+from aio_pika import connect_robust, Message, DeliveryMode, ExchangeType
 from app.config import settings
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn")
 
 
 class RabbitMQClient:
-    connection = None
-    channel = None
-    # 定义队列名称，必须唯一
-    QUEUE_NAME = "pylab_course_sync_queue"
+    """
+    RabbitMQ 全局客户端 (单例模式 - 类方法实现)
+    """
+    connection: aio_pika.Connection = None
+    channel: aio_pika.Channel = None
+    EXCHANGE_NAME = "pylab.direct"  # 交换机名称
 
     @classmethod
-    async def init(cls):
+    async def connect(cls):
         """初始化 RabbitMQ 连接"""
-        if not cls.connection:
-            # connect_robust 支持断线自动重连，生产环境必备
-            try:
-                cls.connection = await connect_robust(settings.RABBITMQ_URL)
-                cls.channel = await cls.connection.channel()
+        if cls.connection and not cls.connection.is_closed:
+            return
 
-                # 声明队列 (durable=True 表示持久化，重启 MQ 队列不丢)
-                await cls.channel.declare_queue(cls.QUEUE_NAME, durable=True)
-                logger.info("🐰 [RabbitMQ] 连接成功，队列已就绪")
-            except Exception as e:
-                logger.error(f"❌ [RabbitMQ] 连接失败: {e}")
-                raise e
+        try:
+            # 1. 建立连接
+            cls.connection = await connect_robust(settings.RABBITMQ_URL)
+
+            # 2. 建立通道
+            cls.channel = await cls.connection.channel()
+
+            # 3. 声明交换机 (确保交换机存在)
+            await cls.channel.declare_exchange(
+                cls.EXCHANGE_NAME,
+                ExchangeType.DIRECT,
+                durable=True
+            )
+            logger.info("✅ [RabbitMQ] 连接成功 & 交换机已声明")
+        except Exception as e:
+            logger.error(f"❌ [RabbitMQ] 连接失败: {e}")
+            raise e  # 抛出异常以便 main.py 捕获
 
     @classmethod
     async def close(cls):
@@ -36,42 +48,58 @@ class RabbitMQClient:
             logger.info("🛑 [RabbitMQ] 连接已关闭")
 
     @classmethod
-    async def publish(cls, message_body: dict):
-        """生产者：发送消息到队列"""
-        if not cls.channel:
-            await cls.init()
+    async def publish(cls, routing_key: str, message: dict):
+        """发送消息"""
+        if not cls.channel or cls.channel.is_closed:
+            await cls.connect()
 
-        # 发送持久化消息
-        await cls.channel.default_exchange.publish(
+        exchange = await cls.channel.get_exchange(cls.EXCHANGE_NAME)
+
+        await exchange.publish(
             Message(
-                body=json.dumps(message_body).encode(),
+                body=json.dumps(message).encode(),
                 delivery_mode=DeliveryMode.PERSISTENT
             ),
-            routing_key=cls.QUEUE_NAME
+            routing_key=routing_key
         )
-        logger.info(f"📨 [MQ Send] 消息已入队: {message_body}")
+
+    # === [新增] 消费者监听方法 ===
+    @classmethod
+    async def consume(cls, queue_name: str, routing_key: str, callback_func):
+        """
+        启动消费者
+        :param queue_name: 队列名称 (例如 'q_course_sync')
+        :param routing_key: 绑定的路由键 (例如 'task.course.sync')
+        :param callback_func: 处理消息的异步函数，接收 (data: dict)
+        """
+        if not cls.channel:
+            await cls.connect()
+
+        # 1. 声明队列 (持久化)
+        queue = await cls.channel.declare_queue(queue_name, durable=True)
+
+        # 2. 绑定队列到交换机
+        await queue.bind(cls.EXCHANGE_NAME, routing_key=routing_key)
+
+        # 3. 定义包装器 (处理消息确认和 JSON 解析)
+        async def message_wrapper(message: aio_pika.IncomingMessage):
+            async with message.process():  # 上下文管理器会自动 ack 消息
+                try:
+                    body = message.body.decode()
+                    data = json.loads(body)
+                    # 调用业务处理函数
+                    await callback_func(data)
+                except Exception as e:
+                    logger.error(f"❌ [MQ Consume Error] 处理消息失败: {e}")
+                    # 注意：message.process() 默认是 ack。
+                    # 如果需要失败重试 (nack)，需要在这里手动处理，或使用死信队列。
+
+        # 4. 开始消费 (不阻塞)
+        await queue.consume(message_wrapper)
+        logger.info(f"👂 [RabbitMQ] 正在监听队列: {queue_name} (Key: {routing_key})")
 
     @classmethod
-    async def consume(cls, callback_func):
-        """消费者：启动监听"""
-        if not cls.channel:
-            await cls.init()
-
-        queue = await cls.channel.declare_queue(cls.QUEUE_NAME, durable=True)
-
-        # 内部处理包装器：负责解析消息和 ACK
-        async def process_wrapper(message: IncomingMessage):
-            async with message.process():  # 处理完自动发送 ACK 确认
-                body = json.loads(message.body.decode())
-                logger.info(f"📥 [MQ Recv] 收到消息: {body}")
-                try:
-                    # 调用真正的业务逻辑
-                    await callback_func(body)
-                except Exception as e:
-                    logger.error(f"❌ [MQ Error] 消费失败: {e}")
-                    # 可以在这里做死信队列逻辑，暂略
-
-        # 启动消费 (prefetch_count=1 表示同一时间只处理 1 条，防止压垮后端)
-        await cls.channel.set_qos(prefetch_count=1)
-        await queue.consume(process_wrapper)
-        logger.info("👀 [RabbitMQ] 消费者正在后台监听...")
+    async def get_new_channel(cls) -> aio_pika.Channel:
+        if not cls.connection or cls.connection.is_closed:
+            await cls.connect()
+        return await cls.connection.channel()

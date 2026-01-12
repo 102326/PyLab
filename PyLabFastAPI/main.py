@@ -26,9 +26,9 @@ from app.services.vector_db import VectorDBService
 import app.signals  # 信号监听
 
 # === [新增引入] MQ 客户端与消费者任务 ===
-from app.core.mq import RabbitMQClient
 from app.workers.es_worker import sync_course_task
 logging.basicConfig(level=logging.INFO)
+from app.core.mq import RabbitMQClient
 
 # === [核心改造] 定义生命周期管理器 ===
 @asynccontextmanager
@@ -36,43 +36,42 @@ async def lifespan(app: FastAPI):
     # --- 🟢 启动阶段 (Startup) ---
     print("🚀 [Lifespan] 系统启动中...")
 
-    # 1. 连接数据库 (Tortoise ORM)
-    #    手动初始化，确保在向量库操作前数据库已就绪
+    # 1. 数据库 (保持不变)
     await Tortoise.init(
         db_url=settings.DB_URL,
-        modules={"models": [
-            "app.models.user",
-            "app.models.course",
-            "app.models.oj",
-            "app.models.chat",
-        ]},
+        modules={"models": ["app.models.user", "app.models.course", "app.models.oj", "app.models.chat"]},
     )
-    # 开发环境自动生成表结构 (生产环境请用 aerich 迁移工具)
     await Tortoise.generate_schemas()
-    print("✅ [Database] PostgreSQL 连接成功 & 表结构已同步")
+    print("✅ [Database] PostgreSQL 连接成功")
 
-    # 2. 初始化向量数据库字段
-    #    此时数据库已连接，可以安全操作
+    # 2. 向量库 (保持不变)
     try:
         await VectorDBService.init_vector_column()
     except Exception as e:
         print(f"⚠️ [VectorDB] 初始化警告: {e}")
 
-    # 3. 初始化 Elasticsearch
+    # 3. ES (保持不变)
     ESClient.init()
     try:
         await CourseESService.create_index()
     except Exception as e:
-        print(f"⚠️ [ES] 索引初始化失败 (请检查 Docker): {e}")
+        print(f"⚠️ [ES] 索引初始化失败: {e}")
 
-    # 4. === [新增] RabbitMQ 初始化 & 启动消费者 ===
-    #    启动 MQ 连接，并挂载消费者任务
+    # 4. === [修正] RabbitMQ 初始化 & 启动消费者 ===
     try:
-        await RabbitMQClient.init()
-        # 告诉 MQ：收到消息后，请调用 sync_course_task 函数处理
-        await RabbitMQClient.consume(sync_course_task)
+        # A. 连接 MQ (注意：是 connect 不是 init)
+        await RabbitMQClient.connect()
+
+        # B. 启动消费者 (必须指定 队列名 和 路由键)
+        # 假设：只要是有 'task.course.sync' 路由键的消息，都由这个 task 处理
+        await RabbitMQClient.consume(
+            queue_name="q_course_sync",  # 队列名 (持久化存在 RabbitMQ 里)
+            routing_key="task.course.sync",  # 发送消息时用的 Key
+            callback_func=sync_course_task  # 你的业务函数
+        )
+
     except Exception as e:
-        print(f"⚠️ [RabbitMQ] 启动失败 (请检查 Docker 5672 端口): {e}")
+        print(f"⚠️ [RabbitMQ] 启动失败 (请检查 Docker): {e}")
 
     # --- ⏸️ 应用运行中 (Yield) ---
     yield
@@ -80,15 +79,13 @@ async def lifespan(app: FastAPI):
     # --- 🔴 关闭阶段 (Shutdown) ---
     print("🛑 [Lifespan] 系统关闭中...")
 
-    # 5. === [新增] 关闭 MQ 连接 ===
+    # 5. 关闭 MQ
     await RabbitMQClient.close()
 
-    # 6. 关闭 ES 连接
+    # 6. 关闭其他资源 (保持不变)
     await ESClient.close()
-
-    # 7. 关闭数据库连接
     await Tortoise.close_connections()
-    print("👋 [Lifespan] 资源已释放，再见！")
+    print("👋 [Lifespan] 资源已释放")
 
 
 # === 初始化 FastAPI ===
